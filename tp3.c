@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#define load_factor 0.6
+#define MAX_ALPHA 0.6
 #define SEED 0
 
 uint32_t
@@ -75,30 +75,29 @@ hash_t hash(const char* key, size_t m){
   return murmurhash(key, (hash_t)strlen(key), SEED) % (hash_t)m;
 }
 //Hashing cerrado con probing lineal
-struct dictionary {
-  hash_t h;
-  size_t cantidad;
-  size_t m;
-  elem_t* elems;
-  destroy_f destroy;
-  size_t borrados;
-};
 typedef struct elem_t{
   char* key;
   void* value;
   bool borrado;
 }elem_t;
 
+
+struct dictionary {
+  size_t cantidad;
+  size_t m;
+  elem_t* elems;
+  destroy_f destroy;
+  size_t borrados;
+};
+
 dictionary_t *dictionary_create(destroy_f destroy) {
   dictionary_t* dic = malloc(sizeof(dictionary_t));
   if(dic == NULL){
     return NULL;
   }
-  dic->h = murmurhash;
   dic->cantidad = 0;
-  dic->m = 10;
+  dic->m = 100;
   dic->elems = malloc(sizeof(elem_t)*dic->m);
-  
   if(dic->elems == NULL){
     free(dic);
     return NULL;
@@ -115,8 +114,27 @@ dictionary_t *dictionary_create(destroy_f destroy) {
 };
 
 bool dictionary_put(dictionary_t *dictionary, const char *key, void *value) {
-  return true;
-};
+  if(!dictionary||!key) return false;
+  size_t borrados = dictionary->borrados;
+  size_t cantidad = dictionary->cantidad;
+  size_t m = dictionary->m;
+  size_t index = hash(key, m);
+  size_t alpha = (cantidad + borrados) / m; 
+  if (alpha > MAX_ALPHA) {
+    // Rehashing
+  } else {
+    for (int i = 0; i < m; i++) {
+      if (!dictionary->elems[index].key || strcmp(dictionary->elems[index].key, key) == 0) {
+        dictionary->elems[index].key = (char*)key;
+        dictionary->elems[index].value = value;
+        dictionary->cantidad++;
+        return true;
+      }
+      index = (index + 1) % m;
+    }
+  }
+  return false;
+}
 
 void *dictionary_get(dictionary_t *dictionary, const char *key, bool *err) {
   return NULL;
@@ -131,9 +149,13 @@ void *dictionary_pop(dictionary_t *dictionary, const char *key, bool *err) {
 };
 
 bool dictionary_contains(dictionary_t *dictionary, const char *key) {
-  return true;
+  size_t index = hash(key,dictionary->m);
+
+  while(true){
+    if(!dictionary->elems[index].key || dictionary->elems[index].borrado == false) return false;
+    else if(strcmp(dictionary->elems[index].key,key)==0) return true;
 };
 
-size_t dictionary_size(dictionary_t *dictionary) { return 0; };
+size_t dictionary_size(dictionary_t *dictionary) { return dictionary->cantidad; };
 
 void dictionary_destroy(dictionary_t *dictionary){};
