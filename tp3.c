@@ -114,27 +114,60 @@ dictionary_t *dictionary_create(destroy_f destroy) {
 };
 
 bool dictionary_put(dictionary_t *dictionary, const char *key, void *value) {
-  if(!dictionary||!key) return false;
+  if (!dictionary || !key) return false;
+  
   size_t borrados = dictionary->borrados;
   size_t cantidad = dictionary->cantidad;
   size_t m = dictionary->m;
   size_t index = hash(key, m);
-  size_t alpha = (cantidad + borrados) / m; 
-  if (alpha > MAX_ALPHA) {
-    // Rehashing
-  } else {
-    for (int i = 0; i < m; i++) {
-      if (!dictionary->elems[index].key || strcmp(dictionary->elems[index].key, key) == 0) {
-        dictionary->elems[index].key = (char*)key;
+  float alpha = (float)(cantidad + borrados) / (float)m;
+
+  if (alpha < MAX_ALPHA) {
+    for (size_t i = 0; i < m; i++) {
+      if(!dictionary->elems[index].key || strcmp(dictionary->elems[index].key,key)==0){
+        dictionary->elems[index].key = malloc(strlen(key)+1);
+        if(!dictionary->elems[index].key) return false;
+        strcpy(dictionary->elems[index].key,key);
         dictionary->elems[index].value = value;
         dictionary->cantidad++;
         return true;
-      }
+      }else{
       index = (index + 1) % m;
+      }
     }
+  } else {
+    dictionary_t *new_dic = dictionary_create(dictionary->destroy);
+    if (!new_dic) return false;
+    
+    new_dic->m = m * 2;
+    new_dic->elems = malloc(sizeof(elem_t) * new_dic->m);
+    if (!new_dic->elems) {
+      free(new_dic);
+      return false;
+    }
+    
+    for (size_t i = 0; i < new_dic->m; i++) {
+      new_dic->elems[i].key = NULL;
+      new_dic->elems[i].value = NULL;
+      new_dic->elems[i].borrado = false;
+    }
+
+    for (size_t i = 0; i < m; i++) {
+      if (dictionary->elems[i].key) {
+        dictionary_put(new_dic, dictionary->elems[i].key, dictionary->elems[i].value);
+        dictionary->destroy(dictionary->elems[i].value);
+      }
+    }
+
+    free(dictionary->elems);
+    *dictionary = *new_dic;
+    free(new_dic);
+    return dictionary_put(dictionary, key, value);
   }
+
   return false;
 }
+
 
 void *dictionary_get(dictionary_t *dictionary, const char *key, bool *err) {
   return NULL;
@@ -151,11 +184,23 @@ void *dictionary_pop(dictionary_t *dictionary, const char *key, bool *err) {
 bool dictionary_contains(dictionary_t *dictionary, const char *key) {
   size_t index = hash(key,dictionary->m);
 
-  while(true){
-    if(!dictionary->elems[index].key || dictionary->elems[index].borrado == false) return false;
-    else if(strcmp(dictionary->elems[index].key,key)==0) return true;
+  for (size_t i = 0; i < dictionary->m; i++) {
+    if(!dictionary->elems[index].key && dictionary->elems[index].borrado == false) return false;
+    if(strcmp(dictionary->elems[index].key, key) == 0) return true;
+    index = (index + 1) % dictionary->m;
+  }
+  return false;
 };
 
 size_t dictionary_size(dictionary_t *dictionary) { return dictionary->cantidad; };
 
-void dictionary_destroy(dictionary_t *dictionary){};
+void dictionary_destroy(dictionary_t *dictionary){
+  for(size_t i = 0; i < dictionary->m; i++){
+    if(dictionary->elems[i].key){
+      free(dictionary->elems[i].key);
+      dictionary->destroy(dictionary->elems[i].value);
+    }
+  }
+  free(dictionary->elems);
+  free(dictionary);
+};
