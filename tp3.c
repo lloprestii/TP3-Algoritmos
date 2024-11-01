@@ -95,18 +95,13 @@ dictionary_t *dictionary_create(destroy_f destroy) {
   if(!dic) return NULL;
   dic->cantidad = 0;
   dic->m = 100;
-  dic->elems = malloc(sizeof(elem_t)*dic->m);
+  dic->elems = calloc(dic->m, sizeof(elem_t));
   if(!dic->elems){
     free(dic);
     return NULL;
   }
   dic->destroy = destroy;
   dic->borrados = 0;
-  for(size_t i = 0; i < dic->m; i++){
-    dic->elems[i].key = NULL;
-    dic->elems[i].value = NULL;
-    dic->elems[i].borrado = false;
-  }
   return dic;
 };
 
@@ -123,6 +118,11 @@ bool dictionary_put(dictionary_t *dictionary, const char *key, void *value) {
         dictionary->elems[index].key = malloc(strlen(key)+1);
         if(!dictionary->elems[index].key) return false;
         strcpy(dictionary->elems[index].key,key);
+        if(strcmp(dictionary->elems[index].key,key)==0){
+          if(dictionary->elems[index].value && dictionary->destroy){
+            dictionary->destroy(dictionary->elems[index].value);
+        }
+        }
         dictionary->elems[index].value = value;
         dictionary->cantidad++;
         return true;
