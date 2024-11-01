@@ -17,7 +17,7 @@ murmurhash (const char *key, uint32_t len, uint32_t seed) {
   uint32_t n = 0xe6546b64;
   uint32_t h = 0;
   uint32_t k = 0;
-  uint8_t *d = (uint8_t *) key; // 32 bit extract from `key'
+  uint8_t *d = (uint8_t *) key; // 32 bit extract from key'
   const uint32_t *chunks = NULL;
   const uint8_t *tail = NULL; // tail - last 8 bytes
   int i = 0;
@@ -26,14 +26,14 @@ murmurhash (const char *key, uint32_t len, uint32_t seed) {
   h = seed;
 
   chunks = (const uint32_t *) (d + l * 4); // body
-  tail = (const uint8_t *) (d + l * 4); // last 8 byte chunk of `key'
+  tail = (const uint8_t *) (d + l * 4); // last 8 byte chunk of key'
 
-  // for each 4 byte chunk of `key'
+  // for each 4 byte chunk of key'
   for (i = -l; i != 0; ++i) {
-    // next 4 byte chunk of `key'
+    // next 4 byte chunk of key'
     k = chunks[i];
 
-    // encode next 4 byte chunk of `key'
+    // encode next 4 byte chunk of key'
     k *= c1;
     k = (k << r1) | (k >> (32 - r1));
     k *= c2;
@@ -47,7 +47,7 @@ murmurhash (const char *key, uint32_t len, uint32_t seed) {
   k = 0;
 
   // remainder
-  switch (len & 3) { // `len % 4'
+  switch (len & 3) { // len % 4'
     case 3: k ^= (tail[2] << 16);
     case 2: k ^= (tail[1] << 8);
 
@@ -114,49 +114,45 @@ bool dictionary_put(dictionary_t *dictionary, const char *key, void *value) {
   float alpha = (float)(cantidad + borrados) / (float)m;
   if (alpha < MAX_ALPHA) {
     for (size_t i = 0; i < m; i++) {
-      if(!dictionary->elems[index].key || strcmp(dictionary->elems[index].key,key)==0){
-        dictionary->elems[index].key = malloc(strlen(key)+1);
-        if(!dictionary->elems[index].key) return false;
-        strcpy(dictionary->elems[index].key,key);
-        if(strcmp(dictionary->elems[index].key,key)==0){
-          if(dictionary->elems[index].value && dictionary->destroy){
+      if (!dictionary->elems[index].key || strcmp(dictionary->elems[index].key, key) == 0) {
+        dictionary->elems[index].key = malloc(strlen(key) + 1);
+        if (!dictionary->elems[index].key) return false;
+        strcpy(dictionary->elems[index].key, key);
+        if (strcmp(dictionary->elems[index].key, key) == 0) {
+          if (dictionary->elems[index].value && dictionary->destroy) {
             dictionary->destroy(dictionary->elems[index].value);
-        }
+          }
         }
         dictionary->elems[index].value = value;
         dictionary->cantidad++;
         return true;
-      }else{
-      index = (index + 1) % m;
+      } else {
+        index = (index + 1) % m;
       }
     }
   } else {
     dictionary_t *new_dic = dictionary_create(dictionary->destroy);
     if (!new_dic) return false;
     new_dic->m = m * 2;
-    new_dic->elems = malloc(sizeof(elem_t) * new_dic->m);
+    new_dic->elems = calloc(new_dic->m, sizeof(elem_t));
     if (!new_dic->elems) {
       free(new_dic);
       return false;
     }
-    for (size_t i = 0; i < new_dic->m; i++) {
-      new_dic->elems[i].key = NULL;
-      new_dic->elems[i].value = NULL;
-      new_dic->elems[i].borrado = false;
-    }
     for (size_t i = 0; i < m; i++) {
       if (dictionary->elems[i].key) {
         dictionary_put(new_dic, dictionary->elems[i].key, dictionary->elems[i].value);
-        dictionary->destroy(dictionary->elems[i].value);
       }
     }
+
     free(dictionary->elems);
     *dictionary = *new_dic;
     free(new_dic);
     return dictionary_put(dictionary, key, value);
   }
   return false;
-};
+}
+
 
 void *dictionary_get(dictionary_t *dictionary, const char *key, bool *err) {
     if (!dictionary || !key) {
@@ -195,7 +191,7 @@ bool dictionary_delete(dictionary_t *dictionary, const char *key) {
     }
     index = (index + 1) % dictionary->m;
   }
-  return NULL;
+  return false;
 };
 
 void *dictionary_pop(dictionary_t *dictionary, const char *key, bool *err) {
