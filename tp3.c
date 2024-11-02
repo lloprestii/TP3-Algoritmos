@@ -6,6 +6,7 @@
 
 #define MAX_ALPHA 0.6
 #define SEED 0
+#define INITIAL_SIZE 100
 
 uint32_t
 murmurhash (const char *key, uint32_t len, uint32_t seed) {
@@ -90,69 +91,66 @@ struct dictionary {
   size_t borrados;
 };
 
+
 dictionary_t *dictionary_create(destroy_f destroy) {
-  dictionary_t* dic = malloc(sizeof(dictionary_t));
-  if(!dic) return NULL;
-  dic->cantidad = 0;
-  dic->m = 100;
-  dic->elems = calloc(dic->m, sizeof(elem_t));
-  if(!dic->elems){
-    free(dic);
-    return NULL;
+  dictionary_t *dictionary = malloc(sizeof(dictionary_t));
+  if (!dictionary) return NULL;
+  dictionary->elems = calloc(INITIAL_SIZE, sizeof(elem_t));
+  if (!dictionary->elems) {
+      free(dictionary);
+      return NULL;
   }
-  dic->destroy = destroy;
-  dic->borrados = 0;
-  return dic;
+  dictionary->m = INITIAL_SIZE;
+  dictionary->cantidad = 0;
+  dictionary->borrados = 0;
+  dictionary->destroy = destroy;
+  return dictionary;
+};
+
+
+void rehash(dictionary_t *dictionary) {
+    size_t new_size = dictionary->m * 2;
+    elem_t *new_elems = calloc(new_size, sizeof(elem_t));
+    for (size_t i = 0; i < dictionary->m; i++) {
+        if (dictionary->elems[i].key && !dictionary->elems[i].borrado) {
+            size_t new_index = hash(dictionary->elems[i].key, new_size);
+            while (new_elems[new_index].key != NULL) new_index = (new_index + 1) % new_size;
+            new_elems[new_index] = dictionary->elems[i];
+        }
+    }
+    free(dictionary->elems);
+    dictionary->elems = new_elems;
+    dictionary->m = new_size;
+    dictionary->borrados = 0;
 };
 
 bool dictionary_put(dictionary_t *dictionary, const char *key, void *value) {
-  if (!dictionary || !key) return false;
-  size_t borrados = dictionary->borrados;
-  size_t cantidad = dictionary->cantidad;
-  size_t m = dictionary->m;
-  size_t index = hash(key, m);
-  float alpha = (float)(cantidad + borrados) / (float)m;
-  if (alpha < MAX_ALPHA) {
-    for (size_t i = 0; i < m; i++) {
-      if (!dictionary->elems[index].key || strcmp(dictionary->elems[index].key, key) == 0) {
-        dictionary->elems[index].key = malloc(strlen(key) + 1);
-        if (!dictionary->elems[index].key) return false;
-        strcpy(dictionary->elems[index].key, key);
-        if (strcmp(dictionary->elems[index].key, key) == 0) {
-          if (dictionary->elems[index].value && dictionary->destroy) {
-            dictionary->destroy(dictionary->elems[index].value);
-          }
+    if (!dictionary || !key || strlen(key) == 0) return false;
+    float alpha = (float)(dictionary->cantidad + dictionary->borrados) / (float)dictionary->m;
+    if (alpha > MAX_ALPHA) rehash(dictionary);
+    size_t index = hash(key, dictionary->m);
+    size_t first_borrado = dictionary->m;
+    while (dictionary->elems[index].key != NULL) {
+        if (!dictionary->elems[index].borrado && strcmp(dictionary->elems[index].key, key) == 0) {
+            if (dictionary->destroy)  dictionary->destroy(dictionary->elems[index].value);
+            dictionary->elems[index].value = value;
+            return true;
         }
-        dictionary->elems[index].value = value;
-        dictionary->cantidad++;
-        return true;
-      } else {
-        index = (index + 1) % m;
-      }
+        if (dictionary->elems[index].borrado && first_borrado == dictionary->m) first_borrado = index;
+        index = (index + 1) % dictionary->m;
     }
-  } else {
-    dictionary_t *new_dic = dictionary_create(dictionary->destroy);
-    if (!new_dic) return false;
-    new_dic->m = m * 2;
-    new_dic->elems = calloc(new_dic->m, sizeof(elem_t));
-    if (!new_dic->elems) {
-      free(new_dic);
-      return false;
+    if (first_borrado != dictionary->m) {
+        index = first_borrado;
+        dictionary->borrados--;
     }
-    for (size_t i = 0; i < m; i++) {
-      if (dictionary->elems[i].key) {
-        dictionary_put(new_dic, dictionary->elems[i].key, dictionary->elems[i].value);
-      }
-    }
-
-    free(dictionary->elems);
-    *dictionary = *new_dic;
-    free(new_dic);
-    return dictionary_put(dictionary, key, value);
-  }
-  return false;
-}
-
+    dictionary->elems[index].key = malloc(strlen(key) + 1);
+    if (!dictionary->elems[index].key) return false;
+    strcpy(dictionary->elems[index].key, key);
+    dictionary->elems[index].value = value;
+    dictionary->elems[index].borrado = false;
+    dictionary->cantidad++;
+    return true;
+};
 
 void *dictionary_get(dictionary_t *dictionary, const char *key, bool *err) {
     if (!dictionary || !key) {
@@ -178,54 +176,55 @@ void *dictionary_get(dictionary_t *dictionary, const char *key, bool *err) {
 bool dictionary_delete(dictionary_t *dictionary, const char *key) {
   if (!dictionary || !key) return false;
   size_t index = hash(key, dictionary->m);
-  for (int i = 0; i < dictionary->m; i++) {
-    if (dictionary->elems[index].key == NULL && dictionary->elems[index].borrado == false) return false;
-    if (dictionary->elems[index].key && strcmp(dictionary->elems[index].key, key) == 0) {
-      free(dictionary->elems[index].key);
-      dictionary->elems[index].key = NULL;
-      dictionary->elems[index].value = NULL;
-      dictionary->elems[index].borrado = true;
-      dictionary->cantidad--;
-      dictionary->borrados++;
-      return true;
-    }
-    index = (index + 1) % dictionary->m;
+  for (size_t i = 0; i < dictionary->m; i++) {
+      if (dictionary->elems[index].key == NULL && dictionary->elems[index].borrado == false) return false;
+      if (dictionary->elems[index].key && strcmp(dictionary->elems[index].key, key) == 0) {
+          free(dictionary->elems[index].key);
+          if (dictionary->destroy && dictionary->elems[index].value) {
+              dictionary->destroy(dictionary->elems[index].value);
+          }
+          dictionary->elems[index].key = NULL;
+          dictionary->elems[index].value = NULL;
+          dictionary->elems[index].borrado = true;
+          dictionary->cantidad--;
+          dictionary->borrados++;
+          return true;
+      }
+      index = (index + 1) % dictionary->m;
   }
   return false;
 };
 
 void *dictionary_pop(dictionary_t *dictionary, const char *key, bool *err) {
   if (!dictionary || !key) {
-    *err = true;
-    return NULL;
-  }
-  size_t index = hash(key, dictionary->m);
-  for (int i = 0; i < dictionary->m; i++) {
-    if (dictionary->elems[index].key == NULL && dictionary->elems[index].borrado == false) {
       *err = true;
       return NULL;
-    }
-    if (dictionary->elems[index].key && strcmp(dictionary->elems[index].key, key) == 0) {
-      void *value = dictionary->elems[index].value;
-      free(dictionary->elems[index].key);
-      dictionary->elems[index].key = NULL;
-      dictionary->elems[index].value = NULL;
-      dictionary->elems[index].borrado = true;
-      dictionary->cantidad--;
-      dictionary->borrados++;
-      *err = false;
-      return value;
-    }
-    index = (index + 1) % dictionary->m;
+  }
+  size_t index = hash(key, dictionary->m);
+  for (size_t i = 0; i < dictionary->m; i++) {
+      if (dictionary->elems[index].key == NULL && dictionary->elems[index].borrado == false) {
+          *err = true;
+          return NULL;
+      }
+      if (dictionary->elems[index].key && strcmp(dictionary->elems[index].key, key) == 0) {
+          void *value = dictionary->elems[index].value;
+          free(dictionary->elems[index].key);
+          dictionary->elems[index].key = NULL;
+          dictionary->elems[index].value = NULL;
+          dictionary->elems[index].borrado = true;
+          dictionary->cantidad--;
+          dictionary->borrados++;
+          *err = false;
+          return value;
+      }
+      index = (index + 1) % dictionary->m;
   }
   *err = true;
   return NULL;
 };
 
-
 bool dictionary_contains(dictionary_t *dictionary, const char *key) {
   size_t index = hash(key,dictionary->m);
-
   for (size_t i = 0; i < dictionary->m; i++) {
     if(!dictionary->elems[index].key && dictionary->elems[index].borrado == false) return false;
     if(strcmp(dictionary->elems[index].key, key) == 0) return true;
@@ -236,14 +235,15 @@ bool dictionary_contains(dictionary_t *dictionary, const char *key) {
 
 size_t dictionary_size(dictionary_t *dictionary) { return dictionary->cantidad; };
 
-void dictionary_destroy(dictionary_t *dictionary){
-  for(size_t i = 0; i < dictionary->m; i++){
-    if(dictionary->elems[i].key){
-      free(dictionary->elems[i].key);
-      if(dictionary->elems[i].value && dictionary->destroy){
-      dictionary->destroy(dictionary->elems[i].value);
+void dictionary_destroy(dictionary_t *dictionary) {
+  if (!dictionary) {
+      return;
+  }
+  for (size_t i = 0; i < dictionary->m; i++) {
+      if (dictionary->elems[i].key && !dictionary->elems[i].borrado) {
+          free(dictionary->elems[i].key);
+          if (dictionary->destroy) dictionary->destroy(dictionary->elems[i].value);
       }
-    }
   }
   free(dictionary->elems);
   free(dictionary);
