@@ -75,7 +75,7 @@ typedef uint32_t hash_t;
 hash_t hash(const char* key, size_t m){
   return murmurhash(key, (hash_t)strlen(key), SEED) % (hash_t)m;
 }
-//Hashing cerrado con probing lineal
+
 typedef struct elem_t{
   char* key;
   void* value;
@@ -129,19 +129,13 @@ bool dictionary_put(dictionary_t *dictionary, const char *key, void *value) {
     float alpha = (float)(dictionary->cantidad + dictionary->borrados) / (float)dictionary->m;
     if (alpha > MAX_ALPHA) rehash(dictionary);
     size_t index = hash(key, dictionary->m);
-    size_t first_borrado = dictionary->m;
-    while (dictionary->elems[index].key != NULL) {
+    while (dictionary->elems[index].key) {
         if (!dictionary->elems[index].borrado && strcmp(dictionary->elems[index].key, key) == 0) {
-            if (dictionary->destroy)  dictionary->destroy(dictionary->elems[index].value);
+            if (dictionary->destroy) dictionary->destroy(dictionary->elems[index].value);
             dictionary->elems[index].value = value;
             return true;
         }
-        if (dictionary->elems[index].borrado && first_borrado == dictionary->m) first_borrado = index;
         index = (index + 1) % dictionary->m;
-    }
-    if (first_borrado != dictionary->m) {
-        index = first_borrado;
-        dictionary->borrados--;
     }
     dictionary->elems[index].key = malloc(strlen(key) + 1);
     if (!dictionary->elems[index].key) return false;
