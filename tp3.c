@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#define MAX_ALPHA 0.8
+#define MAX_ALPHA 0.6
 #define SEED 0
 #define INITIAL_SIZE 100
 
@@ -125,7 +125,6 @@ void rehash(dictionary_t *dictionary) {
 };
 
 bool dictionary_put(dictionary_t *dictionary, const char *key, void *value) {
-    if (!key) return false;
     float alpha = (float)(dictionary->cantidad + dictionary->borrados) / (float)dictionary->m;
     if (alpha > MAX_ALPHA) rehash(dictionary);
     size_t index = hash(key, dictionary->m);
@@ -147,16 +146,8 @@ bool dictionary_put(dictionary_t *dictionary, const char *key, void *value) {
 };
 
 void *dictionary_get(dictionary_t *dictionary, const char *key, bool *err) {
-    if (!key) {
-    *err = true;
-    return NULL;
-  }
   size_t index = hash(key, dictionary->m);
   for (int i = 0; i < dictionary->m; i++) {
-    if (dictionary->elems[index].key == NULL && dictionary->elems[index].borrado == false) {
-      *err = true;
-      return NULL;
-    }
     if (dictionary->elems[index].key != NULL && strcmp(dictionary->elems[index].key, key) == 0) {
       *err = false;
       return dictionary->elems[index].value;
@@ -168,7 +159,6 @@ void *dictionary_get(dictionary_t *dictionary, const char *key, bool *err) {
 };
 
 bool dictionary_delete(dictionary_t *dictionary, const char *key) {
-  if (!key) return false;
   size_t index = hash(key, dictionary->m);
   for (size_t i = 0; i < dictionary->m; i++) {
       if (dictionary->elems[index].key == NULL && dictionary->elems[index].borrado == false) return false;
@@ -190,10 +180,6 @@ bool dictionary_delete(dictionary_t *dictionary, const char *key) {
 };
 
 void *dictionary_pop(dictionary_t *dictionary, const char *key, bool *err) {
-  if (!key) {
-      *err = true;
-      return NULL;
-  }
   size_t index = hash(key, dictionary->m);
   for (size_t i = 0; i < dictionary->m; i++) {
       if (dictionary->elems[index].key == NULL && dictionary->elems[index].borrado == false) {
