@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#define MAX_ALPHA 0.6
+#define MAX_ALPHA 0.8
 #define SEED 0
 #define INITIAL_SIZE 100
 
@@ -125,7 +125,7 @@ void rehash(dictionary_t *dictionary) {
 };
 
 bool dictionary_put(dictionary_t *dictionary, const char *key, void *value) {
-    if (!dictionary || !key || strlen(key) == 0) return false;
+    if (!key) return false;
     float alpha = (float)(dictionary->cantidad + dictionary->borrados) / (float)dictionary->m;
     if (alpha > MAX_ALPHA) rehash(dictionary);
     size_t index = hash(key, dictionary->m);
@@ -147,7 +147,7 @@ bool dictionary_put(dictionary_t *dictionary, const char *key, void *value) {
 };
 
 void *dictionary_get(dictionary_t *dictionary, const char *key, bool *err) {
-    if (!dictionary || !key) {
+    if (!key) {
     *err = true;
     return NULL;
   }
@@ -168,7 +168,7 @@ void *dictionary_get(dictionary_t *dictionary, const char *key, bool *err) {
 };
 
 bool dictionary_delete(dictionary_t *dictionary, const char *key) {
-  if (!dictionary || !key) return false;
+  if (!key) return false;
   size_t index = hash(key, dictionary->m);
   for (size_t i = 0; i < dictionary->m; i++) {
       if (dictionary->elems[index].key == NULL && dictionary->elems[index].borrado == false) return false;
@@ -190,7 +190,7 @@ bool dictionary_delete(dictionary_t *dictionary, const char *key) {
 };
 
 void *dictionary_pop(dictionary_t *dictionary, const char *key, bool *err) {
-  if (!dictionary || !key) {
+  if (!key) {
       *err = true;
       return NULL;
   }
@@ -230,11 +230,8 @@ bool dictionary_contains(dictionary_t *dictionary, const char *key) {
 size_t dictionary_size(dictionary_t *dictionary) { return dictionary->cantidad; };
 
 void dictionary_destroy(dictionary_t *dictionary) {
-  if (!dictionary) {
-      return;
-  }
   for (size_t i = 0; i < dictionary->m; i++) {
-      if (dictionary->elems[i].key && !dictionary->elems[i].borrado) {
+      if (!dictionary->elems[i].borrado) {
           free(dictionary->elems[i].key);
           if (dictionary->destroy) dictionary->destroy(dictionary->elems[i].value);
       }
